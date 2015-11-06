@@ -1,13 +1,13 @@
 package learn.quixey.camelroute.component;
 
-public class SayService {
-    private final String message;
+import org.apache.camel.Exchange;
 
-    public SayService(String message) {
-        this.message = message;
+public class SayService {
+    public void process(Exchange exchange) {
+        System.out.println("Why do you think.. I am called for.. ");
     }
 
-    public String getMessage() {
-        return message;
+    public void processNew(Exchange exchange) {
+        exchange.getIn().setBody("Are you here by chance dude?");
     }
 }

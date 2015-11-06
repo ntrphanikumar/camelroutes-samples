@@ -26,7 +26,7 @@ public class HttpDirectRoute extends RouteBuilder {
         
         from("direct:dumptofile")
             .log("Looks like working")
-            .to("file:///D:/CamelTest");
+            .to("file:/Users/pkumar/logs/cricdump.txt");
     }
 
     public static void main(String[] args) throws Exception {
