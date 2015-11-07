@@ -10,10 +10,10 @@ public class SedaRoute extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        int timeout = 3000, sleepTime = 1000;
-        onException(ExchangeTimedOutException.class).process(exchange -> {log.error("Seda I am upset with your response time !!!! pchhh");}).handled(true);
+        int timeout = 3000, sleepTime = 5000;
         
         from("timer://sedatester?repeatCount=1")
+            .onException(ExchangeTimedOutException.class).process(exchange -> {log.error("Seda I am upset with your response time !!!! pchhh");}).handled(true).end()
             .to(SEDA_WAIT_TEST + "?timeout=" + timeout + "&waitForTaskToComplete=" + WaitForTaskToComplete.Always)
             .process(exchange -> {
                 log.info("Hurray!!!! Seda responded... Let me see what he has got for me ..");
