@@ -10,7 +10,7 @@ public class SedaRoute extends RouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        int timeout = 3000, sleepTime = 5000;
+        int timeout = 3000, sleepTime = 2000;
         
         from("timer://sedatester?repeatCount=1")
             .onException(ExchangeTimedOutException.class).process(exchange -> {log.error("Seda I am upset with your response time !!!! pchhh");}).handled(true).end()
@@ -28,7 +28,7 @@ public class SedaRoute extends RouteBuilder {
     private void sleepFor(long timeInMillis) throws InterruptedException {
         log.info("Feeling sleepy... Let me sleep before going back for millis: " + timeInMillis);
         Thread.sleep(timeInMillis);
-        log.info("Hawwww... I am back.. Hope still seda is waiting for me");
+        log.info("Hawwww... I am back.. Hope still he is waiting for me");
     }
 
     public static void main(String[] args) throws Exception {
