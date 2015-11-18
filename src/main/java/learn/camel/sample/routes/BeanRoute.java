@@ -1,4 +1,4 @@
-package learn.quixey.camelroute.component;
+package learn.camel.sample.routes;
 
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.main.Main;
@@ -14,7 +14,7 @@ public class BeanRoute extends RouteBuilder {
 
         // from("timer://byebean?repeatCount=1").bean(SayService.class);
 
-        from("timer://byebean?repeatCount=1").to("class:learn.quixey.camelroute.component.SayService?method=process").log("${body}");
+        from("timer://byebean?repeatCount=1").to("class:learn.camel.sample.routes.SayService?method=process").log("${body}");
                 // .to("bean:bye")
                 // .to("bean:bye?method=message")
                 // .beanRef("bye", "message")

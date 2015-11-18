@@ -1,4 +1,4 @@
-package learn.quixey.camelroute.component;
+package learn.camel.sample.routes;
 
 import org.apache.camel.ExchangeTimedOutException;
 import org.apache.camel.WaitForTaskToComplete;

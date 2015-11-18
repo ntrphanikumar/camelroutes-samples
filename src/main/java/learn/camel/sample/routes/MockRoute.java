@@ -1,4 +1,4 @@
-package learn.quixey.camelroute.component;
+package learn.camel.sample.routes;
 
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.main.Main;
