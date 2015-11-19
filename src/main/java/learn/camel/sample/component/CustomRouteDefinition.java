@@ -3,6 +3,7 @@ package learn.camel.sample.component;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -13,58 +14,118 @@ import org.apache.camel.model.RouteDefinition;
 
 public class CustomRouteDefinition extends RouteDefinition {
     
+    private static final String ROUTE_CACHE = "ROUTE_CACHE";
     private static final String ROUTE_CACHE_KEY = "ROUTE_CACHE_KEY";
-    private Map<ExchangeCacheEntity, ExchangeCacheEntity> orchestrationCache = new HashMap<>();
+    private Map<String, Cache> cacheByUri = new HashMap<String, Cache>() {
+        private static final long serialVersionUID = -1607353690959834086L;
+        @Override
+        public Cache get(Object uri) {
+            if(!containsKey(uri)) {
+                put(uri.toString(), new Cache(uri.toString()));
+            }
+            return super.get(uri);
+        }
+    };
+    
+    class Cache extends HashMap<ExchangeCacheEntity, ExchangeCacheEntity> {
+        private static final long serialVersionUID = -5855026353296951671L;
 
+        private final String uri;
+
+        public Cache(String uri) {
+            this.uri = uri;
+        }
+
+        public String getUri() {
+            return uri;
+        }
+    }
+    
     @Override
     public CustomRouteDefinition from(String uri) {
         return (CustomRouteDefinition) super.from(uri);
     }
 
     public CustomRouteDefinition toCached(String uri, CachePolicy cachePolicy) {
-        this.process(updateWithCacheKey(cachePolicy))
+        this.process(pushCacheAndCacheKey(uri, cachePolicy))
             .choice()
                 .when(isUpdatedFromCache(cachePolicy))
-                    .log("Respond from cache...")
+                    .log("Found in cache..")
+                    .process(popCacheAndCacheKey(uri))
                 .otherwise()
-                    .log("Not found in cache.. allowing normal process to happen")
-                    .to(uri)
-                    .log("save response in cache")
-                    .process(updateCache(cachePolicy))
-            .endChoice();
+                    .doTry()
+                        .log("Not found in cache.. allowing normal process to happen")
+                        .to(uri)
+                        .log("save response in cache")
+                        .process(updateCache(cachePolicy))
+                    .doFinally()
+                        .process(popCacheAndCacheKey(uri))
+                    .endDoTry()
+            .end();
         return this;
     }
 
-    private Processor updateWithCacheKey(CachePolicy cachePolicy) {
-        return exchange -> exchange.setProperty(ROUTE_CACHE_KEY, buildExchangeCacheEntity(exchange,
-                cachePolicy.isBodyInKey(), cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey()));
+    private Processor popCacheAndCacheKey(String uri) {
+        return exchange -> {
+            Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
+            if (cacheStack != null && !cacheStack.isEmpty() && cacheStack.peek().getUri().equalsIgnoreCase(uri)) {
+                Cache cache = cacheStack.pop();
+                Stack<ExchangeCacheEntity> keyStack = (Stack<ExchangeCacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
+                if (keyStack != null && !keyStack.isEmpty() && cache.containsKey(keyStack.peek())) {
+                    keyStack.pop();
+                }
+            }
+        };
+    }
+
+    private Processor pushCacheAndCacheKey(String uri, CachePolicy cachePolicy) {
+        return exchange -> {
+            Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
+            if (cacheStack == null) {
+                cacheStack = new Stack<>();
+                exchange.setProperty(ROUTE_CACHE, cacheStack);
+            }
+            cacheStack.push(cacheByUri.get(uri));
+            
+            Stack<ExchangeCacheEntity> keyStack = (Stack<ExchangeCacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
+            if (keyStack == null) {
+                keyStack = new Stack<>();
+                exchange.setProperty(ROUTE_CACHE_KEY, keyStack);
+            }
+            keyStack.push(buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
+                    cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey()));
+        };
     }
 
     private Processor updateCache(CachePolicy cachePolicy) {
         return exchange -> {
             ExchangeCacheEntity key = getCacheKey(exchange);
-            orchestrationCache.put(key, buildExchangeCacheEntity(exchange,
+            cache(exchange).put(key, buildExchangeCacheEntity(exchange,
                     cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()));
-            scheduleCacheCleanup(cachePolicy, key);
+            scheduleCacheCleanup(cachePolicy, key, cache(exchange));
         };
     }
 
-    private void scheduleCacheCleanup(CachePolicy cachePolicy, ExchangeCacheEntity key) {
+    private void scheduleCacheCleanup(CachePolicy cachePolicy, ExchangeCacheEntity key, Cache cache) {
         new Timer(true).schedule(new TimerTask() {
             @Override
             public void run() {
-                orchestrationCache.remove(key);
+                cache.remove(key);
             }
         }, cachePolicy.getTimeToLive() * 1000);
     }
 
     private ExchangeCacheEntity getCacheKey(Exchange exchange) {
-        return (ExchangeCacheEntity) exchange.getProperty(ROUTE_CACHE_KEY);
+        return ((Stack<ExchangeCacheEntity>) exchange.getProperty(ROUTE_CACHE_KEY)).peek();
+    }
+
+    private Cache cache(Exchange exchange) {
+        return ((Stack<Cache>) exchange.getProperty(ROUTE_CACHE)).peek();
     }
 
     private Predicate isUpdatedFromCache(CachePolicy cachePolicy) {
         return exchange -> {
-            ExchangeCacheEntity entity = orchestrationCache.get(getCacheKey(exchange));
+            ExchangeCacheEntity entity = cache(exchange).get(getCacheKey(exchange));
             if (entity == null) {
                 return false;
             }
