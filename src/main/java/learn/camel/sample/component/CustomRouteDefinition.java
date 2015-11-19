@@ -84,6 +84,7 @@ public class CustomRouteDefinition extends RouteDefinition {
     private ExchangeCacheEntity buildExchangeCacheEntity(Exchange exchange, boolean body, Set<String> headers, Set<String> properties) {
         ExchangeCacheEntity exchangeCacheEntity = new ExchangeCacheEntity();
         if (body && exchange.getIn().getBody() != null) {
+            // Just a temporary way to convert to bytes.. actually should read from input steam
             exchangeCacheEntity.setBody(exchange.getIn().getBody(String.class).getBytes());
         }
         for (String header : headers) {
