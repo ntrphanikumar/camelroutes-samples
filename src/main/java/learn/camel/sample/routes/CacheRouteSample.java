@@ -14,7 +14,7 @@ public class CacheRouteSample extends CustomRouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        CachePolicy cachePolicy = CachePolicy.builder().cacheBody(true).withBodyInKey(true).liveFor(10).build();
+        CachePolicy cachePolicy = CachePolicy.newPolicy().cacheBody(true).withBodyInKey(true).liveFor(10).build();
 
         from(CACHE_RETRIEVER_DIRECT)
             .toCached("direct:testTryCache", cachePolicy)

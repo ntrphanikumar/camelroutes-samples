@@ -34,7 +34,7 @@ public class CachePolicy {
         return propertiesToCache;
     }
 
-    public static CachePolicyBuilder builder() {
+    public static CachePolicyBuilder newPolicy() {
         return new CachePolicyBuilder();
     }
     
