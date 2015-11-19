@@ -21,7 +21,7 @@ public class CustomRouteDefinition extends RouteDefinition {
         return (CustomRouteDefinition) super.from(uri);
     }
 
-    public CustomRouteDefinition cache(String uri, CachePolicy cachePolicy) {
+    public CustomRouteDefinition toCached(String uri, CachePolicy cachePolicy) {
         this.process(updateWithCacheKey(cachePolicy))
             .choice()
                 .when(isUpdatedFromCache(cachePolicy))

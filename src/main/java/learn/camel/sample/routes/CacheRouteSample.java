@@ -10,12 +10,14 @@ import learn.camel.sample.component.CustomRouteBuilder;
 
 public class CacheRouteSample extends CustomRouteBuilder {
 
+    private static final String CACHE_RETRIEVER_DIRECT = "direct:cacheRetriever";
+
     @Override
     public void configure() throws Exception {
-        CachePolicy testCachePolicy = CachePolicy.builder().cacheBody(true).withBodyInKey(true).liveFor(10).build();
+        CachePolicy cachePolicy = CachePolicy.builder().cacheBody(true).withBodyInKey(true).liveFor(10).build();
 
-        from("direct:cacheRetriever")
-            .cache("direct:testTryCache", testCachePolicy)
+        from(CACHE_RETRIEVER_DIRECT)
+            .toCached("direct:testTryCache", cachePolicy)
             .log("Response recieved is")
             .log("${body}");
         
@@ -29,11 +31,12 @@ public class CacheRouteSample extends CustomRouteBuilder {
         main.enableHangupSupport();
         main.addRouteBuilder(new CacheRouteSample());
         main.start();
-        main.getCamelTemplate().send("direct:cacheRetriever", new DefaultExchange(main.getOrCreateCamelContext()));
+
+        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
         System.out.println("calling again");
-        main.getCamelTemplate().send("direct:cacheRetriever", new DefaultExchange(main.getOrCreateCamelContext()));
+        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
         System.out.println("calling again");
         Thread.sleep(10000);
-        main.getCamelTemplate().send("direct:cacheRetriever", new DefaultExchange(main.getOrCreateCamelContext()));
+        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
     }
 }
