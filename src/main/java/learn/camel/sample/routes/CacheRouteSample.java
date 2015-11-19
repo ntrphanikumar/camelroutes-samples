@@ -12,7 +12,7 @@ public class CacheRouteSample extends CustomRouteBuilder {
 
     @Override
     public void configure() throws Exception {
-        CachePolicy testCachePolicy = CachePolicy.builder().cacheBody(true).withBodyInKey(true).build();
+        CachePolicy testCachePolicy = CachePolicy.builder().cacheBody(true).withBodyInKey(true).liveFor(10).build();
 
         from("direct:cacheRetriever")
             .cache("direct:testTryCache", testCachePolicy)
@@ -31,6 +31,9 @@ public class CacheRouteSample extends CustomRouteBuilder {
         main.start();
         main.getCamelTemplate().send("direct:cacheRetriever", new DefaultExchange(main.getOrCreateCamelContext()));
         System.out.println("calling again");
+        main.getCamelTemplate().send("direct:cacheRetriever", new DefaultExchange(main.getOrCreateCamelContext()));
+        System.out.println("calling again");
+        Thread.sleep(10000);
         main.getCamelTemplate().send("direct:cacheRetriever", new DefaultExchange(main.getOrCreateCamelContext()));
     }
 }

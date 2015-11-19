@@ -8,7 +8,7 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 public class ExchangeCacheEntity {
     private byte[] body;
-    private Map<String, String> headers = new HashMap<>(), properties = new HashMap<>();
+    private Map<String, Object> headers = new HashMap<>(), properties = new HashMap<>();
 
     public byte[] getBody() {
         return body;
@@ -18,19 +18,19 @@ public class ExchangeCacheEntity {
         this.body = body;
     }
 
-    public Map<String, String> getHeaders() {
+    public Map<String, Object> getHeaders() {
         return headers;
     }
 
-    public void setHeaders(Map<String, String> headers) {
+    public void setHeaders(Map<String, Object> headers) {
         this.headers = headers;
     }
 
-    public Map<String, String> getProperties() {
+    public Map<String, Object> getProperties() {
         return properties;
     }
 
-    public void setProperties(Map<String, String> properties) {
+    public void setProperties(Map<String, Object> properties) {
         this.properties = properties;
     }
 

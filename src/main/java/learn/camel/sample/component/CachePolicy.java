@@ -9,6 +9,7 @@ public class CachePolicy {
     private boolean cacheBody = true, bodyInKey = true;
     private Set<String> headersToCache = new HashSet<>(), headersInKey = new HashSet<>(),
             propertiesToCache = new HashSet<>(), propertiesInKey = new HashSet<>();
+    private int timeToLive = 300;
 
     public boolean isBodyInKey() {
         return bodyInKey;
@@ -37,6 +38,10 @@ public class CachePolicy {
         return new CachePolicyBuilder();
     }
     
+    public int getTimeToLive() {
+        return timeToLive;
+    }
+
     public static class CachePolicyBuilder {
         private final CachePolicy cachePolicy = new CachePolicy();
 
@@ -75,6 +80,11 @@ public class CachePolicy {
             if (properties != null && properties.length > 0) {
                 cachePolicy.propertiesInKey = new HashSet<>(Arrays.asList(properties));
             }
+            return this;
+        }
+
+        public CachePolicyBuilder liveFor(int millis) {
+            cachePolicy.timeToLive = millis;
             return this;
         }
 
