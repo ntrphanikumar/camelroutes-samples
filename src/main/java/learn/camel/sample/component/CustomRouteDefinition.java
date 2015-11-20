@@ -10,7 +10,6 @@ import java.util.TimerTask;
 import org.apache.camel.Exchange;
 import org.apache.camel.Predicate;
 import org.apache.camel.Processor;
-import org.apache.camel.model.ChoiceDefinition;
 import org.apache.camel.model.RouteDefinition;
 
 public class CustomRouteDefinition extends RouteDefinition {
@@ -45,32 +44,6 @@ public class CustomRouteDefinition extends RouteDefinition {
         }
     }
     
-    class CustomChoiceDefinition extends ChoiceDefinition {
-        @Override
-        public CustomChoiceDefinition when(Predicate predicate) {
-            return (CustomChoiceDefinition) super.when(predicate);
-        }
-
-        public CustomChoiceDefinition to(String uri) {
-            this.process(pushCacheAndCacheKey(uri))
-                .choice()
-                    .when(isUpdatedFromCache(uri))
-                        .log("Found in cache..")
-                        .process(popCacheAndCacheKey(uri))
-                    .otherwise()
-                        .doTry()
-                            .log("Not found in cache.. allowing normal process to happen")
-                            .to(uri)
-                            .log("save response in cache")
-                            .process(updateCache(uri))
-                        .doFinally()
-                            .process(popCacheAndCacheKey(uri))
-                        .endDoTry()
-                .end();
-            return this;
-        }
-    }
-    
     @Override
     public CustomRouteDefinition from(String uri) {
         return (CustomRouteDefinition) super.from(uri);
@@ -82,44 +55,24 @@ public class CustomRouteDefinition extends RouteDefinition {
     }
     
     @Override
-    public CustomChoiceDefinition choice() {
-        CustomChoiceDefinition answer = new CustomChoiceDefinition();
-        addOutput(answer);
-        return answer;
-    }
-
-    @Override
     public RouteDefinition to(String uri) {
-        this.choice()
-            .when(exchange -> URI_CACHE_POLICY.containsKey(uri))
-                .to(uri)
-            .otherwise()
-                .to(uri)
-            .endChoice();
+        this.process(pushCacheAndCacheKey(uri))
+            .choice()
+                .when(isUpdatedFromCache(uri))
+                    .log("Found in cache..")
+                    .process(popCacheAndCacheKey(uri))
+                .otherwise()
+                    .doTry()
+                        .log("Not found in cache.. allowing normal process to happen")
+                        .to(uri)
+                        .log("save response in cache")
+                        .process(updateCache(uri))
+                    .doFinally()
+                        .process(popCacheAndCacheKey(uri))
+                    .endDoTry()
+            .end();
         return this;
     }
-
-//    public CustomRouteDefinition toCached(String uri, CachePolicy cachePolicy) {
-//        if (cachePolicy == null) {
-//            return (CustomRouteDefinition) super.to(uri);
-//        }
-//        this.process(pushCacheAndCacheKey(uri, cachePolicy))
-//            .choice()
-//                .when(isUpdatedFromCache(cachePolicy))
-//                    .log("Found in cache..")
-//                    .process(popCacheAndCacheKey(uri))
-//                .otherwise()
-//                    .doTry()
-//                        .log("Not found in cache.. allowing normal process to happen")
-//                        .to(uri)
-//                        .log("save response in cache")
-//                        .process(updateCache(cachePolicy))
-//                    .doFinally()
-//                        .process(popCacheAndCacheKey(uri))
-//                    .endDoTry()
-//            .end();
-//        return this;
-//    }
 
     private Processor popCacheAndCacheKey(String uri) {
         return exchange -> {
