@@ -3,8 +3,6 @@ package learn.camel.sample.component;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Predicate;
@@ -14,32 +12,9 @@ import org.apache.camel.model.RouteDefinition;
 public class CustomRouteDefinition extends RouteDefinition {
     
     private static final Map<String, CachePolicy> URI_CACHE_POLICY = new HashMap<>();
-
-    private Map<String, Cache> cacheByUri = new HashMap<String, Cache>() {
-        private static final long serialVersionUID = -1607353690959834086L;
-        @Override
-        public Cache get(Object uri) {
-            if(!containsKey(uri)) {
-                put(uri.toString(), new Cache(uri.toString()));
-            }
-            return super.get(uri);
-        }
-    };
     
-    class Cache extends HashMap<CacheEntity, CacheEntity> {
-        private static final long serialVersionUID = -5855026353296951671L;
+    private CacheManager cacheManager = CacheManager.instance();
 
-        private final String uri;
-
-        public Cache(String uri) {
-            this.uri = uri;
-        }
-
-        public String getUri() {
-            return uri;
-        }
-    }
-    
     @Override
     public CustomRouteDefinition from(String uri) {
         return (CustomRouteDefinition) super.from(uri);
@@ -73,9 +48,8 @@ public class CustomRouteDefinition extends RouteDefinition {
         return exchange -> {
             CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
             CacheEntity key = getCacheKey(exchange, uri);
-            cacheByUri.get(uri).put(key, buildExchangeCacheEntity(exchange,
-                    cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()));
-            scheduleCacheCleanup(cachePolicy, key, cacheByUri.get(uri));
+            cacheManager.put(uri, key, buildExchangeCacheEntity(exchange,
+                    cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()), cachePolicy.getTimeToLive());
         };
     }
 
@@ -87,21 +61,12 @@ public class CustomRouteDefinition extends RouteDefinition {
         return "KEY#" + uri;
     }
 
-    private void scheduleCacheCleanup(CachePolicy cachePolicy, CacheEntity key, Cache cache) {
-        new Timer(true).schedule(new TimerTask() {
-            @Override
-            public void run() {
-                cache.remove(key);
-            }
-        }, cachePolicy.getTimeToLive() * 1000);
-    }
-
     private Predicate isUpdatedFromCache(String uri) {
         return exchange -> {
             CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
             CacheEntity key = buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
                     cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey());
-            CacheEntity entity = cacheByUri.get(uri).get(key);
+            CacheEntity entity = cacheManager.get(uri, key);
             if (entity == null) {
                 exchange.setProperty(cacheKeyProperty(uri), key);
                 return false;
