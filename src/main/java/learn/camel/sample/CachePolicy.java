@@ -1,4 +1,4 @@
-package learn.camel.sample.component;
+package learn.camel.sample;
 
 import java.util.HashSet;
 import java.util.Set;

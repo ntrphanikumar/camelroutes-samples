@@ -1,4 +1,4 @@
-package learn.camel.sample.component;
+package learn.camel.sample;
 
 import java.util.HashMap;
 import java.util.Map;

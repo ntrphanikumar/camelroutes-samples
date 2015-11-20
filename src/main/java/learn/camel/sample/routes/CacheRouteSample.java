@@ -5,8 +5,8 @@ import java.util.Date;
 import org.apache.camel.impl.DefaultExchange;
 import org.apache.camel.main.Main;
 
-import learn.camel.sample.component.CachePolicy;
-import learn.camel.sample.component.CustomRouteBuilder;
+import learn.camel.sample.CachePolicy;
+import learn.camel.sample.CustomRouteBuilder;
 
 public class CacheRouteSample extends CustomRouteBuilder {
 

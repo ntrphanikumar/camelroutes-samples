@@ -1,4 +1,4 @@
-package learn.camel.sample.component;
+package learn.camel.sample;
 
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.model.RoutesDefinition;
