@@ -42,6 +42,7 @@ public class CachePolicy {
         return timeToLive;
     }
 
+    @SuppressWarnings("unchecked")
     public static class CachePolicyBuilder {
         private final CachePolicy cachePolicy = new CachePolicy();
 
