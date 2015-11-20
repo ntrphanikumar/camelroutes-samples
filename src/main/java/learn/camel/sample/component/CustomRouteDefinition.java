@@ -10,12 +10,16 @@ import java.util.TimerTask;
 import org.apache.camel.Exchange;
 import org.apache.camel.Predicate;
 import org.apache.camel.Processor;
+import org.apache.camel.model.ChoiceDefinition;
 import org.apache.camel.model.RouteDefinition;
 
 public class CustomRouteDefinition extends RouteDefinition {
     
     private static final String ROUTE_CACHE = "ROUTE_CACHE";
     private static final String ROUTE_CACHE_KEY = "ROUTE_CACHE_KEY";
+
+    private static final Map<String, CachePolicy> URI_CACHE_POLICY = new HashMap<>();
+
     private Map<String, Cache> cacheByUri = new HashMap<String, Cache>() {
         private static final long serialVersionUID = -1607353690959834086L;
         @Override
@@ -27,7 +31,7 @@ public class CustomRouteDefinition extends RouteDefinition {
         }
     };
     
-    class Cache extends HashMap<ExchangeCacheEntity, ExchangeCacheEntity> {
+    class Cache extends HashMap<CacheEntity, CacheEntity> {
         private static final long serialVersionUID = -5855026353296951671L;
 
         private final String uri;
@@ -41,36 +45,88 @@ public class CustomRouteDefinition extends RouteDefinition {
         }
     }
     
+    class CustomChoiceDefinition extends ChoiceDefinition {
+        @Override
+        public CustomChoiceDefinition when(Predicate predicate) {
+            return (CustomChoiceDefinition) super.when(predicate);
+        }
+
+        public CustomChoiceDefinition to(String uri) {
+            this.process(pushCacheAndCacheKey(uri))
+                .choice()
+                    .when(isUpdatedFromCache(uri))
+                        .log("Found in cache..")
+                        .process(popCacheAndCacheKey(uri))
+                    .otherwise()
+                        .doTry()
+                            .log("Not found in cache.. allowing normal process to happen")
+                            .to(uri)
+                            .log("save response in cache")
+                            .process(updateCache(uri))
+                        .doFinally()
+                            .process(popCacheAndCacheKey(uri))
+                        .endDoTry()
+                .end();
+            return this;
+        }
+    }
+    
     @Override
     public CustomRouteDefinition from(String uri) {
         return (CustomRouteDefinition) super.from(uri);
     }
 
-    public CustomRouteDefinition toCached(String uri, CachePolicy cachePolicy) {
-        this.process(pushCacheAndCacheKey(uri, cachePolicy))
-            .choice()
-                .when(isUpdatedFromCache(cachePolicy))
-                    .log("Found in cache..")
-                    .process(popCacheAndCacheKey(uri))
-                .otherwise()
-                    .doTry()
-                        .log("Not found in cache.. allowing normal process to happen")
-                        .to(uri)
-                        .log("save response in cache")
-                        .process(updateCache(cachePolicy))
-                    .doFinally()
-                        .process(popCacheAndCacheKey(uri))
-                    .endDoTry()
-            .end();
+    public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
+        URI_CACHE_POLICY.put(uri, cachePolicy);
+        return this.from(uri);
+    }
+    
+    @Override
+    public CustomChoiceDefinition choice() {
+        CustomChoiceDefinition answer = new CustomChoiceDefinition();
+        addOutput(answer);
+        return answer;
+    }
+
+    @Override
+    public RouteDefinition to(String uri) {
+        this.choice()
+            .when(exchange -> URI_CACHE_POLICY.containsKey(uri))
+                .to(uri)
+            .otherwise()
+                .to(uri)
+            .endChoice();
         return this;
     }
+
+//    public CustomRouteDefinition toCached(String uri, CachePolicy cachePolicy) {
+//        if (cachePolicy == null) {
+//            return (CustomRouteDefinition) super.to(uri);
+//        }
+//        this.process(pushCacheAndCacheKey(uri, cachePolicy))
+//            .choice()
+//                .when(isUpdatedFromCache(cachePolicy))
+//                    .log("Found in cache..")
+//                    .process(popCacheAndCacheKey(uri))
+//                .otherwise()
+//                    .doTry()
+//                        .log("Not found in cache.. allowing normal process to happen")
+//                        .to(uri)
+//                        .log("save response in cache")
+//                        .process(updateCache(cachePolicy))
+//                    .doFinally()
+//                        .process(popCacheAndCacheKey(uri))
+//                    .endDoTry()
+//            .end();
+//        return this;
+//    }
 
     private Processor popCacheAndCacheKey(String uri) {
         return exchange -> {
             Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
             if (cacheStack != null && !cacheStack.isEmpty() && cacheStack.peek().getUri().equalsIgnoreCase(uri)) {
                 Cache cache = cacheStack.pop();
-                Stack<ExchangeCacheEntity> keyStack = (Stack<ExchangeCacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
+                Stack<CacheEntity> keyStack = (Stack<CacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
                 if (keyStack != null && !keyStack.isEmpty() && cache.containsKey(keyStack.peek())) {
                     keyStack.pop();
                 }
@@ -78,7 +134,7 @@ public class CustomRouteDefinition extends RouteDefinition {
         };
     }
 
-    private Processor pushCacheAndCacheKey(String uri, CachePolicy cachePolicy) {
+    private Processor pushCacheAndCacheKey(String uri) {
         return exchange -> {
             Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
             if (cacheStack == null) {
@@ -87,26 +143,28 @@ public class CustomRouteDefinition extends RouteDefinition {
             }
             cacheStack.push(cacheByUri.get(uri));
             
-            Stack<ExchangeCacheEntity> keyStack = (Stack<ExchangeCacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
+            Stack<CacheEntity> keyStack = (Stack<CacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
             if (keyStack == null) {
                 keyStack = new Stack<>();
                 exchange.setProperty(ROUTE_CACHE_KEY, keyStack);
             }
+            CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
             keyStack.push(buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
                     cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey()));
         };
     }
 
-    private Processor updateCache(CachePolicy cachePolicy) {
+    private Processor updateCache(String uri) {
         return exchange -> {
-            ExchangeCacheEntity key = getCacheKey(exchange);
+            CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
+            CacheEntity key = getCacheKey(exchange);
             cache(exchange).put(key, buildExchangeCacheEntity(exchange,
                     cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()));
             scheduleCacheCleanup(cachePolicy, key, cache(exchange));
         };
     }
 
-    private void scheduleCacheCleanup(CachePolicy cachePolicy, ExchangeCacheEntity key, Cache cache) {
+    private void scheduleCacheCleanup(CachePolicy cachePolicy, CacheEntity key, Cache cache) {
         new Timer(true).schedule(new TimerTask() {
             @Override
             public void run() {
@@ -115,20 +173,21 @@ public class CustomRouteDefinition extends RouteDefinition {
         }, cachePolicy.getTimeToLive() * 1000);
     }
 
-    private ExchangeCacheEntity getCacheKey(Exchange exchange) {
-        return ((Stack<ExchangeCacheEntity>) exchange.getProperty(ROUTE_CACHE_KEY)).peek();
+    private CacheEntity getCacheKey(Exchange exchange) {
+        return ((Stack<CacheEntity>) exchange.getProperty(ROUTE_CACHE_KEY)).peek();
     }
 
     private Cache cache(Exchange exchange) {
         return ((Stack<Cache>) exchange.getProperty(ROUTE_CACHE)).peek();
     }
 
-    private Predicate isUpdatedFromCache(CachePolicy cachePolicy) {
+    private Predicate isUpdatedFromCache(String uri) {
         return exchange -> {
-            ExchangeCacheEntity entity = cache(exchange).get(getCacheKey(exchange));
+            CacheEntity entity = cache(exchange).get(getCacheKey(exchange));
             if (entity == null) {
                 return false;
             }
+            CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
             if (cachePolicy.isCacheBody()) {
                 exchange.getIn().setBody(entity.getBody());
             }
@@ -142,18 +201,18 @@ public class CustomRouteDefinition extends RouteDefinition {
         };
     }
     
-    private ExchangeCacheEntity buildExchangeCacheEntity(Exchange exchange, boolean body, Set<String> headers, Set<String> properties) {
-        ExchangeCacheEntity exchangeCacheEntity = new ExchangeCacheEntity();
+    private CacheEntity buildExchangeCacheEntity(Exchange exchange, boolean body, Set<String> headers, Set<String> properties) {
+        CacheEntity cacheEntity = new CacheEntity();
         if (body && exchange.getIn().getBody() != null) {
             // Just a temporary way to convert to bytes.. actually should read from input steam
-            exchangeCacheEntity.setBody(exchange.getIn().getBody(String.class).getBytes());
+            cacheEntity.setBody(exchange.getIn().getBody(String.class).getBytes());
         }
         for (String header : headers) {
-            exchangeCacheEntity.getHeaders().put(header, exchange.getIn().getHeader(header));
+            cacheEntity.getHeaders().put(header, exchange.getIn().getHeader(header));
         }
         for (String property : properties) {
-            exchangeCacheEntity.getProperties().put(property, exchange.getProperty(property));
+            cacheEntity.getProperties().put(property, exchange.getProperty(property));
         }
-        return exchangeCacheEntity;
+        return cacheEntity;
     }
 }

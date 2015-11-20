@@ -6,7 +6,7 @@ import java.util.Map;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
-public class ExchangeCacheEntity {
+public class CacheEntity {
     private byte[] body;
     private Map<String, Object> headers = new HashMap<>(), properties = new HashMap<>();
 
@@ -41,10 +41,10 @@ public class ExchangeCacheEntity {
     
     @Override
     public boolean equals(Object obj) {
-        if(!(obj instanceof ExchangeCacheEntity)) {
+        if(!(obj instanceof CacheEntity)) {
             return false;
         }
-        ExchangeCacheEntity entity = (ExchangeCacheEntity)obj;
+        CacheEntity entity = (CacheEntity)obj;
         return new EqualsBuilder().append(entity.body, body).append(entity.headers, headers)
                 .append(entity.properties, properties).isEquals();
     }
