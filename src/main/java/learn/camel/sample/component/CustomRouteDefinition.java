@@ -58,17 +58,27 @@ public class CustomRouteDefinition extends RouteDefinition {
     public RouteDefinition to(String uri) {
         this.process(pushCacheAndCacheKey(uri))
             .choice()
-                .when(isUpdatedFromCache(uri)).process(popCacheAndCacheKey(uri))
+                .when(isUpdatedFromCache(uri))
+                .log("Serving from cache for: " + uri)
+                    .process(popCacheAndCacheKey(uri))
                 .otherwise()
+                    .log("Not found in cache. Processing for: " + uri)
                     .doTry().to(uri).process(updateCache(uri))
                     .doFinally().process(popCacheAndCacheKey(uri))
                     .endDoTry()
             .end();
         return this;
     }
+    
+    private boolean isCachable(String uri) {
+        return URI_CACHE_POLICY.containsKey(uri);
+    }
 
     private Processor popCacheAndCacheKey(String uri) {
         return exchange -> {
+            if(!isCachable(uri)) {
+                return;
+            }
             Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
             if (cacheStack != null && !cacheStack.isEmpty() && cacheStack.peek().getUri().equalsIgnoreCase(uri)) {
                 Cache cache = cacheStack.pop();
@@ -82,13 +92,16 @@ public class CustomRouteDefinition extends RouteDefinition {
 
     private Processor pushCacheAndCacheKey(String uri) {
         return exchange -> {
+            if(!isCachable(uri)) {
+                return;
+            }
             Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
             if (cacheStack == null) {
                 cacheStack = new Stack<>();
                 exchange.setProperty(ROUTE_CACHE, cacheStack);
             }
             cacheStack.push(cacheByUri.get(uri));
-            
+
             Stack<CacheEntity> keyStack = (Stack<CacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
             if (keyStack == null) {
                 keyStack = new Stack<>();
@@ -102,6 +115,9 @@ public class CustomRouteDefinition extends RouteDefinition {
 
     private Processor updateCache(String uri) {
         return exchange -> {
+            if(!isCachable(uri)) {
+                return;
+            }
             CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
             CacheEntity key = getCacheKey(exchange);
             cache(exchange).put(key, buildExchangeCacheEntity(exchange,
@@ -129,6 +145,9 @@ public class CustomRouteDefinition extends RouteDefinition {
 
     private Predicate isUpdatedFromCache(String uri) {
         return exchange -> {
+            if(!isCachable(uri)) {
+                return false;
+            }
             CacheEntity entity = cache(exchange).get(getCacheKey(exchange));
             if (entity == null) {
                 return false;
