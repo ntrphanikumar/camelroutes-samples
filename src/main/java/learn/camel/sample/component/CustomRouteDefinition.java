@@ -3,7 +3,6 @@ package learn.camel.sample.component;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -14,9 +13,6 @@ import org.apache.camel.model.RouteDefinition;
 
 public class CustomRouteDefinition extends RouteDefinition {
     
-    private static final String ROUTE_CACHE = "ROUTE_CACHE";
-    private static final String ROUTE_CACHE_KEY = "ROUTE_CACHE_KEY";
-
     private static final Map<String, CachePolicy> URI_CACHE_POLICY = new HashMap<>();
 
     private Map<String, Cache> cacheByUri = new HashMap<String, Cache>() {
@@ -56,74 +52,39 @@ public class CustomRouteDefinition extends RouteDefinition {
     
     @Override
     public RouteDefinition to(String uri) {
-        this.process(pushCacheAndCacheKey(uri))
-            .choice()
+        this.choice()
+                .when(notCachable(uri))
+                    .to(uri)
                 .when(isUpdatedFromCache(uri))
-                .log("Serving from cache for: " + uri)
-                    .process(popCacheAndCacheKey(uri))
+                    .log("Serving from cache for: " + uri)
                 .otherwise()
                     .log("Not found in cache. Processing for: " + uri)
-                    .doTry().to(uri).process(updateCache(uri))
-                    .doFinally().process(popCacheAndCacheKey(uri))
-                    .endDoTry()
-            .end();
+                    .to(uri).process(updateCache(uri))
+            .end()
+            .process(exchange -> exchange.removeProperty(cacheKeyProperty(uri)));
         return this;
     }
     
-    private boolean isCachable(String uri) {
-        return URI_CACHE_POLICY.containsKey(uri);
+    private Predicate notCachable(String uri) {
+        return exchange -> !URI_CACHE_POLICY.containsKey(uri);
     }
-
-    private Processor popCacheAndCacheKey(String uri) {
-        return exchange -> {
-            if(!isCachable(uri)) {
-                return;
-            }
-            Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
-            if (cacheStack != null && !cacheStack.isEmpty() && cacheStack.peek().getUri().equalsIgnoreCase(uri)) {
-                Cache cache = cacheStack.pop();
-                Stack<CacheEntity> keyStack = (Stack<CacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
-                if (keyStack != null && !keyStack.isEmpty() && cache.containsKey(keyStack.peek())) {
-                    keyStack.pop();
-                }
-            }
-        };
-    }
-
-    private Processor pushCacheAndCacheKey(String uri) {
-        return exchange -> {
-            if(!isCachable(uri)) {
-                return;
-            }
-            Stack<Cache> cacheStack = (Stack<Cache>) exchange.getProperty(ROUTE_CACHE);
-            if (cacheStack == null) {
-                cacheStack = new Stack<>();
-                exchange.setProperty(ROUTE_CACHE, cacheStack);
-            }
-            cacheStack.push(cacheByUri.get(uri));
-
-            Stack<CacheEntity> keyStack = (Stack<CacheEntity>)exchange.getProperty(ROUTE_CACHE_KEY);
-            if (keyStack == null) {
-                keyStack = new Stack<>();
-                exchange.setProperty(ROUTE_CACHE_KEY, keyStack);
-            }
-            CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
-            keyStack.push(buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
-                    cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey()));
-        };
-    }
-
+    
     private Processor updateCache(String uri) {
         return exchange -> {
-            if(!isCachable(uri)) {
-                return;
-            }
             CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
-            CacheEntity key = getCacheKey(exchange);
-            cache(exchange).put(key, buildExchangeCacheEntity(exchange,
+            CacheEntity key = getCacheKey(exchange, uri);
+            cacheByUri.get(uri).put(key, buildExchangeCacheEntity(exchange,
                     cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()));
-            scheduleCacheCleanup(cachePolicy, key, cache(exchange));
+            scheduleCacheCleanup(cachePolicy, key, cacheByUri.get(uri));
         };
+    }
+
+    private CacheEntity getCacheKey(Exchange exchange, String uri) {
+        return exchange.getProperty(cacheKeyProperty(uri), CacheEntity.class);
+    }
+    
+    private String cacheKeyProperty(String uri) {
+        return "KEY#" + uri;
     }
 
     private void scheduleCacheCleanup(CachePolicy cachePolicy, CacheEntity key, Cache cache) {
@@ -135,24 +96,16 @@ public class CustomRouteDefinition extends RouteDefinition {
         }, cachePolicy.getTimeToLive() * 1000);
     }
 
-    private CacheEntity getCacheKey(Exchange exchange) {
-        return ((Stack<CacheEntity>) exchange.getProperty(ROUTE_CACHE_KEY)).peek();
-    }
-
-    private Cache cache(Exchange exchange) {
-        return ((Stack<Cache>) exchange.getProperty(ROUTE_CACHE)).peek();
-    }
-
     private Predicate isUpdatedFromCache(String uri) {
         return exchange -> {
-            if(!isCachable(uri)) {
-                return false;
-            }
-            CacheEntity entity = cache(exchange).get(getCacheKey(exchange));
-            if (entity == null) {
-                return false;
-            }
             CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
+            CacheEntity key = buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
+                    cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey());
+            CacheEntity entity = cacheByUri.get(uri).get(key);
+            if (entity == null) {
+                exchange.setProperty(cacheKeyProperty(uri), key);
+                return false;
+            }
             if (cachePolicy.isCacheBody()) {
                 exchange.getIn().setBody(entity.getBody());
             }
@@ -165,7 +118,7 @@ public class CustomRouteDefinition extends RouteDefinition {
             return true;
         };
     }
-    
+
     private CacheEntity buildExchangeCacheEntity(Exchange exchange, boolean body, Set<String> headers, Set<String> properties) {
         CacheEntity cacheEntity = new CacheEntity();
         if (body && exchange.getIn().getBody() != null) {
