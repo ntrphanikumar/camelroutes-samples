@@ -58,17 +58,10 @@ public class CustomRouteDefinition extends RouteDefinition {
     public RouteDefinition to(String uri) {
         this.process(pushCacheAndCacheKey(uri))
             .choice()
-                .when(isUpdatedFromCache(uri))
-                    .log("Found in cache..")
-                    .process(popCacheAndCacheKey(uri))
+                .when(isUpdatedFromCache(uri)).process(popCacheAndCacheKey(uri))
                 .otherwise()
-                    .doTry()
-                        .log("Not found in cache.. allowing normal process to happen")
-                        .to(uri)
-                        .log("save response in cache")
-                        .process(updateCache(uri))
-                    .doFinally()
-                        .process(popCacheAndCacheKey(uri))
+                    .doTry().to(uri).process(updateCache(uri))
+                    .doFinally().process(popCacheAndCacheKey(uri))
                     .endDoTry()
             .end();
         return this;

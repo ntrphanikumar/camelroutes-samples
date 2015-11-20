@@ -17,14 +17,12 @@ public class CacheRouteSample extends CustomRouteBuilder {
         CachePolicy cachePolicy = CachePolicy.newPolicy().cacheBody(true).withBodyInKey(true).liveFor(3).build();
 
         from(CACHE_RETRIEVER_DIRECT)
-//            .toCached("direct:testTryCache", cachePolicy)
             .to("direct:testTryCache")
             .log("Response recieved is")
             .log("${body}");
         
         from("direct:testTryCache", cachePolicy)
-            .log("Processing data and setting to body")
-            .process(exchange -> exchange.getIn().setBody("Some data at: "+ new Date()));
+            .process(exchange -> exchange.getIn().setBody("Some data at: " + new Date()));
     }
 
     public static void main(String[] args) throws Exception {
@@ -34,10 +32,8 @@ public class CacheRouteSample extends CustomRouteBuilder {
         main.start();
 
         main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
-        System.out.println("calling again");
         Thread.sleep(1000);
         main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
-        System.out.println("calling again");
         Thread.sleep(3000);
         main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
     }
