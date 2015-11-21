@@ -1,74 +1,53 @@
 package learn.camel.sample;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Predicate;
 import org.apache.camel.Processor;
+import org.apache.camel.model.ProcessorDefinition;
 import org.apache.camel.model.RouteDefinition;
+
+import learn.camel.sample.CacheManager.Cache;
 
 public class CustomRouteDefinition extends RouteDefinition {
     
-    private static final Map<String, CachePolicy> URI_CACHE_POLICY = new HashMap<>();
-    
-    private CacheManager cacheManager = CacheManager.instance();
+    private CachePolicy cachePolicy;
+    private Cache cache;
 
-    @Override
-    public CustomRouteDefinition from(String uri) {
+    public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
+        this.cachePolicy = cachePolicy;
+        cache = CacheManager.instance().get(uri);
         return (CustomRouteDefinition) super.from(uri);
     }
 
-    public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
-        URI_CACHE_POLICY.put(uri, cachePolicy);
-        return this.from(uri);
+    public CachePolicy getCachePolicy() {
+        return cachePolicy;
     }
-    
-    @Override
-    public RouteDefinition to(String uri) {
-        this.choice()
-                .when(notCachable(uri))
-                    .to(uri)
-                .when(isUpdatedFromCache(uri))
-                    .log("Serving from cache for: " + uri)
-                .otherwise()
-                    .log("Not found in cache. Processing for: " + uri)
-                    .to(uri).process(updateCache(uri))
-            .end()
-            .process(exchange -> exchange.removeProperty(cacheKeyProperty(uri)));
-        return this;
-    }
-    
-    private Predicate notCachable(String uri) {
-        return exchange -> !URI_CACHE_POLICY.containsKey(uri);
-    }
-    
-    private Processor updateCache(String uri) {
+
+    public Processor updateCache() {
         return exchange -> {
-            CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
-            CacheEntity key = getCacheKey(exchange, uri);
-            cacheManager.put(uri, key, buildExchangeCacheEntity(exchange,
+            CacheEntity key = getCacheKey(exchange);
+            cache.put(key, buildExchangeCacheEntity(exchange,
                     cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()), cachePolicy.getTimeToLive());
         };
     }
 
-    private CacheEntity getCacheKey(Exchange exchange, String uri) {
-        return exchange.getProperty(cacheKeyProperty(uri), CacheEntity.class);
+    private CacheEntity getCacheKey(Exchange exchange) {
+        return exchange.getProperty(cacheKeyProperty(), CacheEntity.class);
     }
     
-    private String cacheKeyProperty(String uri) {
-        return "KEY#" + uri;
+    public String cacheKeyProperty() {
+        return "KEY#" + "";
     }
 
-    private Predicate isUpdatedFromCache(String uri) {
+    public Predicate isUpdatedFromCache() {
         return exchange -> {
-            CachePolicy cachePolicy = URI_CACHE_POLICY.get(uri);
             CacheEntity key = buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
                     cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey());
-            CacheEntity entity = cacheManager.get(uri, key);
+            CacheEntity entity = cache.get(key);
             if (entity == null) {
-                exchange.setProperty(cacheKeyProperty(uri), key);
+                exchange.setProperty(cacheKeyProperty(), key);
                 return false;
             }
             if (cachePolicy.isCacheBody()) {
@@ -97,5 +76,28 @@ public class CustomRouteDefinition extends RouteDefinition {
             cacheEntity.getProperties().put(property, exchange.getProperty(property));
         }
         return cacheEntity;
+    }
+
+    public RouteDefinition buildCacheSourceRoute(String cacheSourceDirect) {
+        RouteDefinition cacheSourceRoute =
+                new RouteDefinition(cacheSourceDirect).description("cache source route for " + this);
+        for (ProcessorDefinition output : getOutputs()) {
+            cacheSourceRoute.addOutput(output);
+        }
+        return cacheSourceRoute;
+    }
+    
+    public CustomRouteDefinition makeRouteCacheSourceChoice(String cacheSourceDirect) {
+        clearOutput();
+        this.choice()
+                .when(isUpdatedFromCache())
+                    .log("Serving from cache")
+                .otherwise()
+                    .log("Not found in cache. Processing !!!")
+                    .to(cacheSourceDirect)
+                    .process(updateCache())
+                .end()
+                .process(exchange -> exchange.removeProperty(cacheKeyProperty()));
+        return this;
     }
 }

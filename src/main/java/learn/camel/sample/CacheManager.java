@@ -22,6 +22,16 @@ public class CacheManager {
     
     public class Cache extends HashMap<CacheEntity, CacheEntity> {
         private static final long serialVersionUID = -5855026353296951671L;
+
+        public void put(CacheEntity key, CacheEntity value, int timeToLive) {
+            put(key, value);
+            new Timer(true).schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    remove(key);
+                }
+            }, timeToLive * 1000);
+        }
     }
     
     private CacheManager() {
@@ -36,14 +46,7 @@ public class CacheManager {
         return cacheByName.get(cacheName).get(cacheKey);
     }
     
-    public void put(String cacheName, CacheEntity cacheKey, CacheEntity value, int timeToLive) {
-        Cache cache = cacheByName.get(cacheName);
-        cache.put(cacheKey, value);
-        new Timer(true).schedule(new TimerTask() {
-            @Override
-            public void run() {
-                cache.remove(cacheKey);
-            }
-        }, timeToLive * 1000);
+    public Cache get(String cacheName) {
+        return cacheByName.get(cacheName);
     }
 }

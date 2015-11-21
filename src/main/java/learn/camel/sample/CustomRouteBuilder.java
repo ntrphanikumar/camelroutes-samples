@@ -8,14 +8,9 @@ public abstract class CustomRouteBuilder extends RouteBuilder {
     public class CustomRoutesDefinition extends RoutesDefinition {
 
         public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
-            CustomRouteDefinition route = createRoute();
+            CustomRouteDefinition route = new CustomRouteDefinition();
             route.from(uri, cachePolicy);
             return (CustomRouteDefinition) route(route);
-        }
-
-        @Override
-        protected CustomRouteDefinition createRoute() {
-            return new CustomRouteDefinition();
         }
     }
 
@@ -24,10 +19,6 @@ public abstract class CustomRouteBuilder extends RouteBuilder {
     public CustomRouteBuilder() {
         super();
         setRouteCollection(routeCollection);
-    }
-
-    public CustomRouteDefinition from(String uri) {
-        return (CustomRouteDefinition) super.from(uri);
     }
 
     public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
