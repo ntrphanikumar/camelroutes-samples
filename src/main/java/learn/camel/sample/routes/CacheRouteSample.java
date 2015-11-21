@@ -12,18 +12,19 @@ import learn.camel.sample.CustomRouteBuilder;
 
 public class CacheRouteSample extends CustomRouteBuilder {
 
+    private static final String TEST_CACHE_DIRECT = "direct:testCache";
     private static final String CACHE_RETRIEVER_DIRECT = "direct:cacheRetriever";
 
     @Override
     public void configure() throws Exception {
-        CachePolicy cachePolicy = CachePolicy.newPolicy().cacheBody(true).withBodyInKey(true).liveFor(3).build();
+        CachePolicy cachePolicy = CachePolicy.newPolicy().cacheBody(true).withBodyInKey(true).liveFor(5).build();
 
         from(CACHE_RETRIEVER_DIRECT)
-            .to("direct:testTryCache")
+            .to(TEST_CACHE_DIRECT)
             .log("Response recieved is")
             .log("${body}");
         
-        from("direct:testTryCache", cachePolicy)
+        from(TEST_CACHE_DIRECT, cachePolicy)
             .process(exchange -> exchange.getIn().setBody("Some data at: " + new Date()));
     }
 
@@ -40,8 +41,8 @@ public class CacheRouteSample extends CustomRouteBuilder {
 
         main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
         Thread.sleep(1000);
-        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
-        Thread.sleep(3000);
+        main.getCamelTemplate().send(TEST_CACHE_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
+        Thread.sleep(2000);
         main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
     }
 }
