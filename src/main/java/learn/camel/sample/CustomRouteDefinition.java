@@ -1,6 +1,7 @@
 package learn.camel.sample;
 
 import java.util.Set;
+import java.util.UUID;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.Predicate;
@@ -14,6 +15,7 @@ public class CustomRouteDefinition extends RouteDefinition {
     
     private CachePolicy cachePolicy;
     private Cache cache;
+    private final String cacheSourceId = "cache-source-" + UUID.randomUUID();
 
     public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
         this.cachePolicy = cachePolicy;
@@ -38,7 +40,7 @@ public class CustomRouteDefinition extends RouteDefinition {
     }
     
     public String cacheKeyProperty() {
-        return "KEY#" + "";
+        return "KEY#" + cacheSourceId;
     }
 
     public Predicate isUpdatedFromCache() {
@@ -78,23 +80,28 @@ public class CustomRouteDefinition extends RouteDefinition {
         return cacheEntity;
     }
 
-    public RouteDefinition buildCacheSourceRoute(String cacheSourceDirect) {
+    public RouteDefinition buildCacheSourceRoute() {
+        if(cachePolicy == null) {
+            throw new IllegalArgumentException("Cache source routes can only be build for routes with cache policy");
+        }
+        String cacheSourceEndpointUri = "direct:"+cacheSourceId;
         RouteDefinition cacheSourceRoute =
-                new RouteDefinition(cacheSourceDirect).description("cache source route for " + this);
+                new RouteDefinition(cacheSourceEndpointUri).id(cacheSourceId).description("cache source route for " + this);
         for (ProcessorDefinition output : getOutputs()) {
             cacheSourceRoute.addOutput(output);
         }
+        makeRouteCacheSourceChoice(cacheSourceEndpointUri);
         return cacheSourceRoute;
     }
     
-    public CustomRouteDefinition makeRouteCacheSourceChoice(String cacheSourceDirect) {
+    private CustomRouteDefinition makeRouteCacheSourceChoice(String cacheSourceEndpointUri) {
         clearOutput();
         this.choice()
                 .when(isUpdatedFromCache())
                     .log("Serving from cache")
                 .otherwise()
                     .log("Not found in cache. Processing !!!")
-                    .to(cacheSourceDirect)
+                    .to(cacheSourceEndpointUri)
                     .process(updateCache())
                 .end()
                 .process(exchange -> exchange.removeProperty(cacheKeyProperty()));

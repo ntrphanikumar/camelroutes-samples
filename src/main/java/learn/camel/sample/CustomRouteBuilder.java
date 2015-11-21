@@ -6,7 +6,6 @@ import org.apache.camel.model.RoutesDefinition;
 public abstract class CustomRouteBuilder extends RouteBuilder {
 
     public class CustomRoutesDefinition extends RoutesDefinition {
-
         public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
             CustomRouteDefinition route = new CustomRouteDefinition();
             route.from(uri, cachePolicy);
