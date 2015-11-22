@@ -11,16 +11,16 @@ import org.apache.camel.model.RouteDefinition;
 
 import learn.camel.sample.CacheManager.Cache;
 
-public class CustomRouteDefinition extends RouteDefinition {
+public class CachableRouteDefinition extends RouteDefinition {
     
     private CachePolicy cachePolicy;
     private Cache cache;
     private final String cacheSourceId = "cache-source-" + UUID.randomUUID();
 
-    public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
+    public RouteDefinition from(String uri, CachePolicy cachePolicy) {
         this.cachePolicy = cachePolicy;
         cache = CacheManager.instance().get(uri);
-        return (CustomRouteDefinition) super.from(uri);
+        return (CachableRouteDefinition) super.from(uri);
     }
 
     public CachePolicy getCachePolicy() {
@@ -80,7 +80,7 @@ public class CustomRouteDefinition extends RouteDefinition {
         return cacheEntity;
     }
 
-    public RouteDefinition buildCacheSourceRoute() {
+    private RouteDefinition buildCacheSourceRoute() {
         if(cachePolicy == null) {
             throw new IllegalArgumentException("Cache source routes can only be build for routes with cache policy");
         }
@@ -96,7 +96,8 @@ public class CustomRouteDefinition extends RouteDefinition {
         return "direct:" + cacheSourceId;
     }
     
-    public CustomRouteDefinition makeRouteCacheSourceChoice() {
+    RouteDefinition makeRouteCacheCapable() {
+        RouteDefinition cacheSourceRoute = buildCacheSourceRoute();
         clearOutput();
         this.choice()
                 .when(isUpdatedFromCache())
@@ -107,6 +108,6 @@ public class CustomRouteDefinition extends RouteDefinition {
                     .process(updateCache())
                 .end()
                 .process(exchange -> exchange.removeProperty(cacheKeyProperty()));
-        return this;
+        return cacheSourceRoute;
     }
 }

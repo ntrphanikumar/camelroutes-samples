@@ -10,10 +10,8 @@ import org.apache.camel.model.RoutesDefinition;
 public abstract class CustomRouteBuilder extends RouteBuilder {
 
     public class CustomRoutesDefinition extends RoutesDefinition {
-        public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
-            CustomRouteDefinition route = new CustomRouteDefinition();
-            route.from(uri, cachePolicy);
-            return (CustomRouteDefinition) route(route);
+        public RouteDefinition from(String uri, CachePolicy cachePolicy) {
+            return route(new CachableRouteDefinition().from(uri, cachePolicy));
         }
     }
 
@@ -24,9 +22,9 @@ public abstract class CustomRouteBuilder extends RouteBuilder {
         setRouteCollection(routeCollection);
     }
 
-    public CustomRouteDefinition from(String uri, CachePolicy cachePolicy) {
+    public RouteDefinition from(String uri, CachePolicy cachePolicy) {
         routeCollection.setCamelContext(getContext());
-        CustomRouteDefinition answer = routeCollection.from(uri, cachePolicy);
+        RouteDefinition answer = routeCollection.from(uri, cachePolicy);
         configureRoute(answer);
         return answer;
     }
@@ -36,13 +34,10 @@ public abstract class CustomRouteBuilder extends RouteBuilder {
         super.checkInitialized();
         Set<RouteDefinition> cacheSourceRoutes = new HashSet<>();
         for(RouteDefinition route: routeCollection.getRoutes()) {
-            if (route instanceof CustomRouteDefinition) {
-                CustomRouteDefinition customRouteDefinition = (CustomRouteDefinition) route;
+            if (route instanceof CachableRouteDefinition) {
+                CachableRouteDefinition customRouteDefinition = (CachableRouteDefinition) route;
                 if (customRouteDefinition.getCachePolicy() != null) {
-                    RouteDefinition cacheSourceRoute = customRouteDefinition.buildCacheSourceRoute();
-                    cacheSourceRoute.markPrepared();
-                    cacheSourceRoutes.add(cacheSourceRoute);
-                    customRouteDefinition.makeRouteCacheSourceChoice();
+                    cacheSourceRoutes.add(customRouteDefinition.makeRouteCacheCapable());
                 }
             }
         }
