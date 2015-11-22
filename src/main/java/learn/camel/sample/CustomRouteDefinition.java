@@ -84,24 +84,26 @@ public class CustomRouteDefinition extends RouteDefinition {
         if(cachePolicy == null) {
             throw new IllegalArgumentException("Cache source routes can only be build for routes with cache policy");
         }
-        String cacheSourceEndpointUri = "direct:"+cacheSourceId;
         RouteDefinition cacheSourceRoute =
-                new RouteDefinition(cacheSourceEndpointUri).id(cacheSourceId).description("cache source route for " + this);
-        for (ProcessorDefinition output : getOutputs()) {
+                new RouteDefinition(cacheSourceEndpointUri()).id(cacheSourceId).description("cache source route for " + this);
+        for (ProcessorDefinition<?> output : getOutputs()) {
             cacheSourceRoute.addOutput(output);
         }
-        makeRouteCacheSourceChoice(cacheSourceEndpointUri);
         return cacheSourceRoute;
     }
     
-    private CustomRouteDefinition makeRouteCacheSourceChoice(String cacheSourceEndpointUri) {
+    private String cacheSourceEndpointUri() {
+        return "direct:" + cacheSourceId;
+    }
+    
+    public CustomRouteDefinition makeRouteCacheSourceChoice() {
         clearOutput();
         this.choice()
                 .when(isUpdatedFromCache())
                     .log("Serving from cache")
                 .otherwise()
                     .log("Not found in cache. Processing !!!")
-                    .to(cacheSourceEndpointUri)
+                    .to(cacheSourceEndpointUri())
                     .process(updateCache())
                 .end()
                 .process(exchange -> exchange.removeProperty(cacheKeyProperty()));

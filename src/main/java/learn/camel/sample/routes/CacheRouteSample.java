@@ -2,12 +2,10 @@ package learn.camel.sample.routes;
 
 import java.util.Date;
 
-import org.apache.camel.CamelContext;
-import org.apache.camel.impl.DefaultExchange;
+import org.apache.camel.Processor;
 import org.apache.camel.main.Main;
 
 import learn.camel.sample.CachePolicy;
-import learn.camel.sample.CustomCamelContext;
 import learn.camel.sample.CustomRouteBuilder;
 
 public class CacheRouteSample extends CustomRouteBuilder {
@@ -29,20 +27,16 @@ public class CacheRouteSample extends CustomRouteBuilder {
     }
 
     public static void main(String[] args) throws Exception {
-        Main main = new Main() {
-            @Override
-            protected CamelContext createContext() {
-                return new CustomCamelContext();
-            }
-        };
+        Main main = new Main();
         main.enableHangupSupport();
         main.addRouteBuilder(new CacheRouteSample());
         main.start();
 
-        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
+        Processor processor = exchange -> {};
+        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, processor);
         Thread.sleep(1000);
-        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
+        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, processor);
         Thread.sleep(2000);
-        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, new DefaultExchange(main.getOrCreateCamelContext()));
+        main.getCamelTemplate().send(CACHE_RETRIEVER_DIRECT, processor);
     }
 }
