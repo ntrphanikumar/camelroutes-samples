@@ -34,16 +34,27 @@ public class CachableRouteDefinition extends RouteDefinition {
                     cachePolicy.isCacheBody(), cachePolicy.getHeadersToCache(), cachePolicy.getPropertiesToCache()), cachePolicy.getTimeToLive());
         };
     }
+    
+    RouteDefinition makeRouteCacheCapable() {
+        RouteDefinition cacheSourceRoute = buildCacheSourceRoute();
+        clearOutput();
+        this.choice()
+                .when(isUpdatedFromCache())
+                    .log("Serving from cache")
+                .otherwise()
+                    .log("Not found in cache. Processing !!!")
+                    .to(cacheSourceEndpointUri())
+                    .process(updateCache())
+                .end()
+                .process(exchange -> exchange.removeProperty(cacheKeyProperty()));
+        return cacheSourceRoute;
+    }
 
     private CacheEntity getCacheKey(Exchange exchange) {
         return exchange.getProperty(cacheKeyProperty(), CacheEntity.class);
     }
     
-    public String cacheKeyProperty() {
-        return "KEY#" + cacheSourceId;
-    }
-
-    public Predicate isUpdatedFromCache() {
+    private Predicate isUpdatedFromCache() {
         return exchange -> {
             CacheEntity key = buildExchangeCacheEntity(exchange, cachePolicy.isBodyInKey(),
                     cachePolicy.getHeadersInKey(), cachePolicy.getPropertiesInKey());
@@ -96,18 +107,7 @@ public class CachableRouteDefinition extends RouteDefinition {
         return "direct:" + cacheSourceId;
     }
     
-    RouteDefinition makeRouteCacheCapable() {
-        RouteDefinition cacheSourceRoute = buildCacheSourceRoute();
-        clearOutput();
-        this.choice()
-                .when(isUpdatedFromCache())
-                    .log("Serving from cache")
-                .otherwise()
-                    .log("Not found in cache. Processing !!!")
-                    .to(cacheSourceEndpointUri())
-                    .process(updateCache())
-                .end()
-                .process(exchange -> exchange.removeProperty(cacheKeyProperty()));
-        return cacheSourceRoute;
+    private String cacheKeyProperty() {
+        return "KEY#" + cacheSourceId;
     }
 }
