@@ -24,8 +24,7 @@ public class NashornLearn extends RouteBuilder {
             .process(exchange -> {
                 ScriptEngineManager scriptEngineManager = new ScriptEngineManager(); 
                 ScriptEngine nashorn = scriptEngineManager.getEngineByName("nashorn");
-                Object eval = nashorn.eval(exchange.getIn().getBody(String.class));
-                System.out.println(eval);
+                nashorn.eval(exchange.getIn().getBody(String.class));
             });
     }
 
